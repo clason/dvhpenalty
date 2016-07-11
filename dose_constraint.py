@@ -11,7 +11,7 @@ by Richard C. Barnard and Christian Clason, http://arxiv.org/abs/1607.01655
 
 __author__ = "Richard C. Barnard <barnardrc@ornl.gov>", \
              "Christian Clason <christian.clason@uni-due.de>"
-__date__ = "July 6, 2016"
+__date__ = "July 11, 2016"
 
 import numpy as np
 from numpy import matlib
@@ -50,9 +50,7 @@ M = sp.csc_matrix(sp.kron(It,Mx))
 # dose operator
 C = sp.csr_matrix(matlib.repmat(tau*np.eye(nx),1,nt))
 
-# indicator functions of control, tumor, risk domains 
-om_C = np.reshape((xx<-.75).astype('float')+(xx>.75).astype('float'),nx*nt)
-om_C = sp.diags(om_C,0)    # control domain
+# indicator functions tumor, risk domains 
 om_T = ((x > -0.45).astype('float')*(x < 0.45).astype('float'))
 om_T -= (np.abs(x)<.2).astype('float')
 om_T = sp.diags(om_T,0)    # tumor region
@@ -179,9 +177,9 @@ while (gamma>1e-7):
         # plot results
         DVH,levels = comp_DVH(C*y)
         ax1.cla()
-        ax1.plot(x,C*y, label = 'Cy')
-        ax1.plot(x,np.diagonal(om_T.toarray())*U,label='U \chi_{\omega_T}')
-        ax1.plot(x,np.diagonal(om_R.toarray())*L,label='L \chi_{\omega_R}')
+        ax1.plot(x,C*y, label = 'Cy',color='b')
+        ax1.plot(x,np.diagonal(om_T.toarray())*U,color='g',label='U \chi_{\omega_T}')
+        ax1.plot(x,np.diagonal(om_R.toarray())*L,color='r',label='L \chi_{\omega_R}')
         ax1.set_xlabel('x')
         ax1.set_ylabel('Dose')
         ax1.legend()
@@ -191,6 +189,8 @@ while (gamma>1e-7):
         ax2.plot(levels,DVH[1,:],color='g',label='Target')
         ax2.axvline(x=L,color='r',linestyle='dashed')
         ax2.axvline(x=U,color='g',linestyle='dashed')
+        ax2.fill_between(levels,DVH[0,:],0,where=levels>=L,facecolor='r',alpha=0.5)
+        ax2.fill_between(levels,DVH[1,:],1,where=levels<=U,facecolor='g',alpha=0.5)
         ax2.set_xlabel('Dose Level')
         ax2.set_ylabel('Volume Fraction')
         ax2.legend()
