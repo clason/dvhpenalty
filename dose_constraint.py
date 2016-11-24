@@ -2,7 +2,7 @@
 """
 This module solves the reference parabolic dose constrained problem
     min_u 1/2 |u|_L2^2  
-    s.t. Cy >= U  on omT,   Cy <= L  on omR,
+    s.t. Cy >= U  on omT,   Cy <= L  on omR, umin <= u <= umax
          y_t - c\Delta y = u,  y(0) = 0 with hom. Dirichlet b.c.
 using a semismooth Newton method as described in the paper
     'L1 penalization of volumetric dose objectives in optimal control of PDEs'
@@ -11,7 +11,7 @@ by Richard C. Barnard and Christian Clason, http://arxiv.org/abs/1607.01655
 
 __author__ = "Richard C. Barnard <barnardrc@ornl.gov>", \
              "Christian Clason <christian.clason@uni-due.de>"
-__date__ = "July 11, 2016"
+__date__ = "November 24, 2016"
 
 import numpy as np
 from numpy import matlib
@@ -22,6 +22,8 @@ import matplotlib.pyplot as plt
 # problem parameters
 U     = 5.e-1   # threshold level: tumor
 L     = 2.e-1   # threshold level: OAR
+umin  = 0       # lower control bound
+umax  = 2       # upper control bound
 maxit = 100     # max number of SSN iterations
 
 # pde parameters
@@ -50,7 +52,7 @@ M = sp.csc_matrix(sp.kron(It,Mx))
 # dose operator
 C = sp.csr_matrix(matlib.repmat(tau*np.eye(nx),1,nt))
 
-# indicator functions tumor, risk domains 
+# indicator functions of tumor, risk domains
 om_T = ((x > -0.45).astype('float')*(x < 0.45).astype('float'))
 om_T -= (np.abs(x)<.2).astype('float')
 om_T = sp.diags(om_T,0)    # tumor region
@@ -66,10 +68,6 @@ def S(u):
     return np.reshape(solve(M*u),u.shape)
 def St(r):
     return np.reshape(M*solve_adjoint(r),r.shape)
-def Pcq(u):
-    p=np.copy(u)
-    p[np.where(u<0)] = 0.
-    return p
 def Phi(a):
     return np.maximum(a,0)
 def Phi_prime(a):
@@ -80,7 +78,7 @@ def compute_RHS(u):
     y = S(u)
     prox1 = -Mx*(om_T*Phi(-om_T*(C*y-U)))/gamma
     prox2 = Mx*(om_R*Phi(om_R*(C*y-L)))/gamma
-    prox3 = -1.*Phi((-u))/gamma
+    prox3 = -np.clip(-u,umin,umax)/gamma
     grad = St(C.transpose()*(prox1+prox2))+M*(u+prox3)
     return grad,y
     
@@ -89,7 +87,7 @@ def compute_Hess(du,u,y):
     Sdu = S(du)
     dprox1 = om_T*((-om_T*(C*y-U) > 0.)*(C*Sdu))/gamma
     dprox2 = om_R*((om_R*(C*y-L) > 0.)*(C*Sdu))/gamma
-    dprox3 = (u<0)*du/gamma
+    dprox3 = (u<umin)*du/gamma-(u>umax)*du/gamma
     Hdu = St(C.transpose()*(Mx*(dprox1+dprox2))) + M*(du + dprox3)
     return Hdu 
     

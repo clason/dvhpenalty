@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-This module solves the parabolic dose penalized problem
+This module solves the model parabolic dose penalized problem
     min_u 1/2 |u|_L2^2 + beta_1 |(Cy-U)^-|_L1(omT) + beta_2|(Cy-L)^+|_L1(omR)
     s.t.  y_t - c\Delta y = u,  y(0) = 0 with hom. Dirichlet b.c.
+            and umin <= u <= umax a.e.
 using a semismooth Newton method as described in the paper
     'L1 penalization of volumetric dose objectives in optimal control of PDEs'
 by Richard C. Barnard and Christian Clason, http://arxiv.org/abs/1607.01655
@@ -10,7 +11,7 @@ by Richard C. Barnard and Christian Clason, http://arxiv.org/abs/1607.01655
 
 __author__ = "Richard C. Barnard <barnardrc@ornl.gov>", \
              "Christian Clason <christian.clason@uni-due.de>"
-__date__ = "July 11, 2016"
+__date__ = "November 24, 2016"
 
 import numpy as np
 from numpy import matlib
@@ -19,10 +20,12 @@ from scipy.sparse import linalg as la
 import matplotlib.pyplot as plt
 
 # problem parameters
-beta1 = 1e3/0.5   # dose penalty on tumor (per unit volume)
-beta2 = 1e4/0.7   # dose penalty on oar (per unit volume)
+beta1 = 1e6/.5   # dose penalty on tumor (per unit volume)
+beta2 = 1e6/.7  # dose penalty on oar (per unit volume)
 U     = 5.e-1     # threshold level: tumor
 L     = 2.e-1     # threshold level: OAR
+umin  = 0         # lower control bound
+umax  = 2         # upper control bound
 maxit = 100       # max number of SSN iterations
 
 # pde parameters
@@ -115,7 +118,7 @@ def SSN_loop(u,gamma):
     """semismooth Newton method for fixed gamma and starting point u"""
     # compute gradient
     Fuk,y  = F_uk(u)
-    grad = M*u-np.maximum(-1.*Fuk,0)
+    grad = u-np.clip(-Fuk,umin,umax)
     gradNorm = np.dot(grad.T,M*grad)
     firstNorm = np.copy(gradNorm)
     k = 0
@@ -124,7 +127,7 @@ def SSN_loop(u,gamma):
         print 'It# %d: residual = %1.3e' % (k,gradNorm)
         k += 1
         # application of Newton derivative, solve for Newton step
-        Hdu = lambda du: M*du + (-Fuk>=0)*DNF_uk(du,u,y,gamma)
+        Hdu = lambda du: du + (-Fuk>=umin)*(-Fuk<=umax)*DNF_uk(du,u,y,gamma)
         H = la.LinearOperator((nx*nt,nx*nt), matvec = Hdu, dtype = 'float')
         du,flag = la.gmres(H,-grad,x0=None,restart=3000,maxiter=3000,tol=1e-9)
         if (flag):
@@ -134,7 +137,7 @@ def SSN_loop(u,gamma):
         while(delta>=1.e-6):
             tmpu = u + delta*du
             Fuk,tmpy  = F_uk(tmpu)
-            grad = M*tmpu-np.maximum(-1.*Fuk,0)
+            grad = tmpu-np.clip(-Fuk,umin,umax)
             tmpNorm = np.dot(grad.T,M*grad)
             if (tmpNorm<gradNorm):
                 u = np.copy(tmpu)
@@ -176,9 +179,10 @@ fig2,ax2 = plt.subplots()
 
 # homotopy loop
 u = np.zeros(nx*nt)
-gamma = 1.e+2
-while (gamma>1e-7):
-    print "\nGamma = %1.2e" % gamma
+gamma0 = np.maximum(beta1,beta2)
+gamma = gamma0
+while (gamma>1e-10):
+    print "\ngamma/gamma0 = %1.2e" % (gamma/gamma0)
     u,y,residual = SSN_loop(u,gamma)
     if residual > 1e-6:
         break
