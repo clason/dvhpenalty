@@ -7,8 +7,8 @@ If you find this code useful, you can cite the paper as
     @article{dvhpenalty,
         author = {Barnard, Richard C. and Clason, Christian},
         title = "{$L^1$} penalization of volumetric dose objectives in optimal control of {PDEs}",
-        eprinttype = {arxiv},
-        eprint = {1606.01655},
-        year = {2016}
+        journal = {Computational Optimization and Applications},
+        volume = {Online First},
+        doi = {10.1007/s10589-017-9897-6},
+        year = {2017}
     }
-
